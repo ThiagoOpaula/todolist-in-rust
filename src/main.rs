@@ -1,23 +1,48 @@
-use serde::{Deserialize, Serialize};
-use std::fs::File;
-use std::io::prelude::*;
-use std::path::Path;
+use std::process::exit;
 
-#[derive(Serialize, Deserialize, Debug)]
+use rusqlite::{Connection, Result};
+
+#[derive(Debug)]
 struct Todo {
-    checked: bool,
+    id: i32,
     description: String,
+    checked: bool,
 }
 
-fn main() {
+fn main() -> Result<(), rusqlite::Error> {
+    let conn: Connection = Connection::open("todolist.db").expect("failed to open connection");
+
+    let _ = conn.execute(
+        "CREATE TABLE IF NOT EXISTS todo (
+             id INTEGER PRIMARY KEY,
+             description TEXT NOT NULL,
+             checked BOOLEAN NOT NULL
+         )",
+        [],
+    );
+
+    let mut stmt = conn.prepare("SELECT id, description, checked FROM todo")?;
+
+    let rows = stmt.query_map([], |row| {
+        Ok(Todo {
+            id: row.get(0)?,
+            checked: row.get(1)?,
+            description: row.get(2)?,
+        })
+    })?;
+
+    for todo in rows {
+        println!("{:?}", todo);
+    }
+
     print!(
-        "Bem vindo a lista de tarefas!\n
-        Lista de opções:
-        1. Crie uma nova tarefa
-        2. Ver lista de tarefas
-        3. Marcar tarefa como concluída
-        4. Sair\n
-    "
+        "Bem vindo a lista de tarefas!
+        Escolha uma opção:
+1. Crie uma nova tarefa
+2. Ver lista de tarefas
+3. Marcar tarefa como concluída
+4. Sair\n
+"
     );
 
     let mut input = String::new();
@@ -25,11 +50,8 @@ fn main() {
 
     if input.trim() == "1" {
         println!("Criando uma nova tarefa");
-
         let mut task = String::new();
         std::io::stdin().read_line(&mut task).unwrap();
-
-        write_json_file(task);
     } else if input.trim() == "2" {
         println!("Listando tarefas");
     } else if input.trim() == "3" {
@@ -40,44 +62,8 @@ fn main() {
         println!("Opção inválida");
     }
 
+    Ok(())
+
     //write_json_file();
     //read_json_file();
-}
-
-fn read_json_file() {
-    let path = Path::new("todo.json");
-
-    let mut file = File::open(&path).expect("Unable to open file");
-    let mut json_data = String::new();
-    file.read_to_string(&mut json_data)
-        .expect("Unable to read data from file");
-
-    // Deserialize JSON data into Todo struct
-    let todo: Vec<Todo> = serde_json::from_str(&json_data).unwrap();
-    println!("Todo from JSON file: {:?}", todo);
-}
-
-fn write_json_file(task: String) {
-    // Create an instance of Todo struct
-    let todo: Vec<Todo> = vec![
-        Todo {
-            checked: false,
-            description: String::from("Learn Rust"),
-        },
-        Todo {
-            checked: true,
-            description: String::from("duas vezes rust"),
-        },
-    ];
-
-    // Serialize the Todo struct to JSON
-    let json = serde_json::to_string(&todo).unwrap();
-
-    // Write JSON data to a file
-    let path = Path::new("todo.json");
-    let mut file = File::create(&path).expect("Unable to create file");
-    file.write_all(json.as_bytes())
-        .expect("Unable to write data to file");
-
-    println!("JSON data has been written to todo.json");
 }
